@@ -1,0 +1,47 @@
+## MSML604 Project Configuration
+## All parameters are controlled here — nothing is hardcoded in the source files.
+
+dataset:
+  name: "trivia_qa"
+  config: "rc.wikipedia"        # Wikipedia evidence documents
+  split: "validation"
+  num_queries: 200               # total queries to load
+  num_train_queries: 150         # used for weight learning (QP + non-convex)
+  num_test_queries: 50           # held-out queries for final evaluation
+  seed: 42                       # reproducibility
+
+retrieval:
+  embedding_model: "all-MiniLM-L6-v2"   # sentence-transformers model (fast + good)
+  top_k: 10                              # final documents retrieved per query
+  num_candidates: 50                     # initial candidate pool before re-ranking
+  mmr_reference_size: 5                  # docs used to compute diversity signal
+
+optimization:
+  lambda_reg: 0.01          # L2 regularization strength for convex QP
+  solver: "OSQP"            # CVXPY solver: OSQP, SCS, ECOS all work
+  nonconvex_method: "Nelder-Mead"   # scipy gradient-free method
+  nonconvex_maxiter: 500    # max iterations for non-convex optimizer
+
+evaluation:
+  k_values: [1, 3, 5, 10]   # k values for Recall@k and Precision@k
+
+# ── LLM Provider ────────────────────────────────────────────────────────────
+# Set provider to "groq" or "gemini".
+# API keys are read from the .env file
+llm:
+  provider: "groq"             # options: "groq" | "gemini"
+  max_tokens: 128              # short answers for QA
+  temperature: 0.0             # deterministic output
+  num_eval_queries: 30         # subset of test queries for LLM evaluation
+  max_retries: 3               # retry attempts on 429 rate limit errors
+  base_backoff_seconds: 45     # fallback wait time if API delay not parseable
+
+groq:
+  model: "llama-3.3-70b-versatile"   # Groq model name — see console.groq.com/docs/models
+
+gemini:
+  model: "gemini-2.0-flash"  # Gemini model name — see ai.google.dev/gemini-api/docs/models
+
+output:
+  results_dir: "results"
+  log_level: "INFO"
