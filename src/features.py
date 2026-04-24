@@ -52,6 +52,38 @@ def normalize_min_max(arr: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+def compute_query_profile(X: np.ndarray) -> np.ndarray:
+    """
+    Summarize the retrieval behavior of a single query as a (3,) profile vector.
+
+    Each element is the mean normalized feature value across all candidate
+    documents for that query:
+        profile[0] = mean cosine similarity across candidates
+        profile[1] = mean BM25 score across candidates
+        profile[2] = mean MMR diversity across candidates
+
+    Interpretation
+    --------------
+    Queries where cosine >> BM25  →  semantic / conceptual questions
+    Queries where BM25  >> cosine →  factual / keyword-heavy questions
+    Queries where diversity is high → candidates are spread across topics
+
+    This profile is used by ClusterAdaptiveOptimizer to group queries with
+    similar retrieval behavior and learn separate weight vectors per group.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n_candidates, 3)
+        Feature matrix for a single query (values already normalized to [0,1]).
+
+    Returns
+    -------
+    profile : np.ndarray of shape (3,)
+    """
+    return X.mean(axis=0).astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
 def build_feature_matrix(
     query: str,
     query_emb: np.ndarray,

@@ -22,6 +22,20 @@ optimization:
   nonconvex_method: "Nelder-Mead"   # scipy gradient-free method
   nonconvex_maxiter: 500    # max iterations for non-convex optimizer
 
+# ── Cluster-Adaptive QP ──────────────────────────────────────────────────────
+# ClusterAdaptiveOptimizer groups training queries by retrieval behavior
+# (mean feature profile per query), then solves a separate convex QP per cluster.
+# Each per-cluster QP retains full convexity guarantees.
+#
+# k_path: list of K values to sweep — enables inertia elbow + weight diversity
+#         analysis across cluster counts.
+# min_cluster_size: if a cluster has fewer members than this, fall back to the
+#                   global ConvexQP weights for that cluster.
+adaptive:
+  k_path: [2, 3, 4]         # K values for the cluster-count sweep
+  min_cluster_size: 10      # min queries per cluster before fallback to global weights
+  lambda_path: [0.001, 0.01, 0.1, 1.0]   # λ values for regularization path analysis
+
 evaluation:
   k_values: [1, 3, 5, 10]   # k values for Recall@k and Precision@k
 
