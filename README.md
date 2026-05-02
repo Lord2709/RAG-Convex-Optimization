@@ -79,7 +79,7 @@ RAG-Convex-Optimization/
 ### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/<your-username>/RAG-Convex-Optimization.git
+git clone https://github.com/Lord2709/RAG-Convex-Optimization.git
 cd RAG-Convex-Optimization
 pip install -r requirements.txt
 ```
