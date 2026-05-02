@@ -1,0 +1,38 @@
+dataset:
+  config: rc.wikipedia
+  name: trivia_qa
+  num_queries: 30
+  num_test_queries: 10
+  num_train_queries: 20
+  seed: 42
+  split: validation
+evaluation:
+  k_values:
+  - 1
+  - 3
+  - 5
+  - 10
+gemini:
+  model: gemini-2.0-flash
+groq:
+  model: llama-3.3-70b-versatile
+llm:
+  base_backoff_seconds: 45
+  max_retries: 3
+  max_tokens: 128
+  num_eval_queries: 5
+  provider: groq
+  temperature: 0.0
+optimization:
+  lambda_reg: 0.01
+  nonconvex_maxiter: 500
+  nonconvex_method: Nelder-Mead
+  solver: OSQP
+output:
+  log_level: WARNING
+  results_dir: results
+retrieval:
+  embedding_model: all-MiniLM-L6-v2
+  mmr_reference_size: 5
+  num_candidates: 50
+  top_k: 10

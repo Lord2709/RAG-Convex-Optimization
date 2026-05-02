@@ -109,6 +109,103 @@ def rank_with_weights(
 
 
 # ---------------------------------------------------------------------------
+# Lambda regularization sensitivity sweep
+# ---------------------------------------------------------------------------
+
+LAMBDA_GRID = [0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0]
+FEATURE_NAMES_SHORT = ["cosine", "bm25", "diversity"]
+
+import cvxpy as cp  # already a dependency; grouped here for clarity
+
+
+def _solve_qp_at_lambda(X: np.ndarray, y: np.ndarray, lam: float, solver_name: str):
+    """Solve the constrained QP for a single lambda and return weights + objective."""
+    n_feat = X.shape[1]
+    w = cp.Variable(n_feat)
+    prob = cp.Problem(
+        cp.Minimize(cp.sum_squares(X @ w - y) + lam * cp.sum_squares(w)),
+        [w >= 0, cp.sum(w) == 1],
+    )
+    solver = getattr(cp, solver_name, cp.OSQP)
+    prob.solve(solver=solver, verbose=False)
+
+    if prob.status not in ("optimal", "optimal_inaccurate"):
+        weights = np.ones(n_feat) / n_feat
+    else:
+        weights = np.clip(np.array(w.value).flatten(), 0, None)
+        total = weights.sum()
+        if total > 1e-10:
+            weights /= total
+        else:
+            weights = np.ones(n_feat) / n_feat
+    return weights, float(prob.value) if prob.value is not None else float("nan"), prob.status
+
+
+def _recall_at_k_stacked(
+    X: np.ndarray,
+    y: np.ndarray,
+    weights: np.ndarray,
+    n_candidates: int,
+    k: int,
+) -> float:
+    """Compute Recall@k from a stacked feature/label matrix (one block per query)."""
+    n_queries = len(y) // n_candidates
+    recalls = []
+    for i in range(n_queries):
+        s, e = i * n_candidates, (i + 1) * n_candidates
+        y_q = y[s:e]
+        n_rel = int(y_q.sum())
+        if n_rel == 0:
+            continue
+        scores = X[s:e] @ weights
+        top_k = np.argsort(scores)[::-1][:k]
+        recalls.append(float(y_q[top_k].sum()) / n_rel)
+    return float(np.mean(recalls)) if recalls else 0.0
+
+
+def _run_lambda_sweep(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    config: Dict[str, Any],
+) -> List[Dict]:
+    """
+    Sweep the lambda regularization grid and record learned weights + Recall@5
+    at each value.  Returns a list of result dicts (one per lambda), sorted by lambda.
+    """
+    logging.info("=" * 60)
+    logging.info("STAGE 4b  Lambda sensitivity sweep (%d values)", len(LAMBDA_GRID))
+    logging.info("=" * 60)
+
+    solver_name = config["optimization"]["solver"]
+    n_candidates = config["retrieval"]["num_candidates"]
+    k = 5  # fixed at 5 for the sensitivity figure
+
+    records = []
+    for lam in sorted(LAMBDA_GRID):
+        weights, opt_val, status = _solve_qp_at_lambda(X_train, y_train, lam, solver_name)
+        recall5 = _recall_at_k_stacked(X_train, y_train, weights, n_candidates, k)
+        records.append(
+            {
+                "lambda": lam,
+                "log10_lambda": float(np.log10(lam)),
+                "w_cosine": float(weights[0]),
+                "w_bm25": float(weights[1]),
+                "w_diversity": float(weights[2]),
+                "optimal_value": opt_val,
+                "recall_at_k": recall5,
+                "k": k,
+                "solver_status": status,
+            }
+        )
+        logging.info(
+            "  λ=%7.4f  cosine=%.3f  bm25=%.3f  div=%.3f  Recall@%d=%.3f",
+            lam, weights[0], weights[1], weights[2], k, recall5,
+        )
+
+    return records
+
+
+# ---------------------------------------------------------------------------
 def run_pipeline(config: Dict[str, Any], skip_llm: bool = False) -> None:
     results_dir = Path(config["output"]["results_dir"])
     results_dir.mkdir(exist_ok=True)
@@ -178,6 +275,9 @@ def run_pipeline(config: Dict[str, Any], skip_llm: bool = False) -> None:
     # (a) Convex QP
     convex_opt = ConvexOptimizer(config)
     convex_opt.fit(X_train, y_train)
+
+    # (a2) Lambda sensitivity sweep — runs inline using the same X_train/y_train
+    lambda_sweep_results = _run_lambda_sweep(X_train, y_train, config)
 
     # (b) Non-convex (same features, different objective: Recall@k)
     nonconvex_opt = NonConvexOptimizer(config)
@@ -296,6 +396,19 @@ def run_pipeline(config: Dict[str, Any], skip_llm: bool = False) -> None:
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
     logging.info("Results saved to %s", out_path)
+
+    # Save lambda sensitivity results
+    if lambda_sweep_results:
+        lambda_path = results_dir / "lambda_results.json"
+        with open(lambda_path, "w") as f:
+            json.dump(lambda_sweep_results, f, indent=2)
+        logging.info("Lambda sweep results saved to %s", lambda_path)
+
+    # Save feature matrices for independent lambda_sensitivity.py runs
+    features_path = results_dir / "X_train.npz"
+    np.savez(features_path, X_train=X_train, y_train=y_train)
+    logging.info("Training features saved to %s", features_path)
+
     logging.info("Pipeline complete.")
 
 
