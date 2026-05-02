@@ -1,7 +1,5 @@
 # Convex Optimization for Retrieval-Augmented Generation Pipeline Tuning
 
-**MSML 604 — Introduction to Optimization | Final Project**
-
 > A study of convex and non-convex optimization structure in RAG retrieval signal weighting. We formulate the problem of learning retrieval weights as a constrained Quadratic Program (QP), characterize where convexity holds and where it breaks down, and empirically measure the relaxation gap on TriviaQA.
 
 ---
