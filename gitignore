@@ -34,7 +34,7 @@ build/
 # HuggingFace cache
 ~/.cache/huggingface/
 
-# Word docs (optional — remove these lines if you want them tracked)
+# Word docs
 *.docx
 
 # IDE
